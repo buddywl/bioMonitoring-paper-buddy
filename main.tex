@@ -1,0 +1,91 @@
+\documentclass{article}
+\usepackage{graphicx}
+
+% Resilient
+\title{A Robust System for Monitoring Remote Field Sensors}
+
+% TODO: author marks
+\author{
+  Skye Weaver,
+  Buddy Luong,
+  Evelyn Ray,
+  Alanna Town,
+  Michael P. Robson
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Abstract}
+
+\section{Introduction}
+
+\begin{itemize}
+    \item Why remote field sensors are important (environmental monitoring, agriculture, etc).
+    \item Common problems: unreliable connections, difficult setup, data loss.
+\end{itemize}
+
+Traditional approaches to remote sensor management often involve a plethora of command-line tools, manual file transfers, and unsecured remote access methods, which pose risks of misconfiguration, data loss, and security vulnerabilities. Furthermore, non-expert operators in field conditions frequently encounter barriers related to system setup, network configuration, and troubleshooting. To address these challenges, this paper presents a robust and user-friendly software system for managing and monitoring Raspberry Pi–based sensor nodes deployed in remote or harsh environments. 
+
+The proposed system integrates a cross-platform Java Swing graphical user interface (GUI) with a flexible Python backend to provide a cohesive platform for secure configuration, real-time command execution, and reliable data synchronization. Key features include multi-profile management for handling multiple sensor nodes, automated SSH key setup, optional integration with Radio \textbf{(SOMETHING ABT RADIOS?)} and Tailscale virtual private networking for secure and resilient remote connectivity, as well as an embedded logging console for enhanced transparency during operations. By bundling all components—including a custom Java runtime and necessary backend scripts—into self-contained executables, the system minimizes deployment friction and eliminates manual dependency management, ensuring consistent behavior across Windows, macOS, and Linux platforms.
+
+% Background
+\section{Related Work}
+
+\section{System Architecture}
+The proposed system is designed as a modular, layered architecture that combines hardware, networking, and software components to enable reliable monitoring and control of remote field sensors. The overall architecture consists of three primary subsystems: (i) the field-deployed sensor modules, (ii) the host-side backend service, and (iii) the cross-platform graphical user interface (GUI). The system’s architecture distinctly separates user interaction logic from low-level network operations by detaching the Java-based graphical user interface (GUI) and the Python backend service. This separation provides several practical advantages: it allows the GUI to remain lightweight and portable, leverages Python’s rich system libraries for secure remote execution, and makes the backend easy to adapt or extend independently of the interface.
+
+\subsection{Field Sensor Modules}
+ % MORE ON THIS, I DON't Know that MUCH ABT IT
+
+\subsection{Host Backend Services}
+On the user’s host machine (e.g., a laptop or workstation), a Python backend serves as an intermediary layer that bridges the graphical user interface (GUI) and the remote Raspberry Pi sensor nodes, abstracting low-level networking, secure command execution, and file management into a set of reusable services. This design isolates system-level operations from the Java-based frontend, simplifying the GUI’s responsibilities and enabling flexible backend updates without recompiling the main application.\\
+
+When a user interacts with the GUI, the frontend invokes the backend by spawning a subprocess that executes the corresponding Python script with appropriate arguments. The backend interprets these arguments and initiates secure communication with the targeted Raspberry Pi via SSH, using pre-configured key-based authentication to ensure passwordless, encrypted sessions. For command execution, the backend runs remote shell scripts or Python modules directly on the Pi, handles output and error streams, and captures responses for display in the GUI’s embedded console in real time. For file synchronization, the backend leverages rsync or scp over SSH depending on the host's operating system.\\
+
+This architecture allows the backend to manage multiple tasks concurrently, such as monitoring sensor status, reloading configuration files, and managing remote processes. Additionally, by isolating network and file system operations within the Python layer, the system benefits from Python’s extensive standard libraries and robust error handling for system calls and subprocess management. This approach greatly reduces complexity within the Java GUI, supports easier debugging and logging \\
+
+The initial prototype of the system employed a direct socket connection to communicate between the host machine and the remote Raspberry Pi modules. While socket-based communication offers low-level control and simplicity for local network interactions, it introduces significant challenges for secure, reliable operation in real-world field deployments. Raw sockets typically require manual configuration of network ports, firewall rules, and static IP addressing, which can be impractical or insecure, especially when nodes are deployed behind dynamic network environments. In contrast, switching to Secure Shell (SSH) as the primary communication layer provided robust, encrypted, and authenticated remote access without the need for open listening ports on the Pi. SSH leverages widely tested protocols, and integrates seamlessly with existing Linux-based systems, which greatly simplified deployment and administration. Moreover, SSH inherently supports secure command execution, file transfer (scp or rsync), and remote process management within a single protocol, reducing the need to implement and maintain custom transport mechanisms in the backend code. These ssh processes were already being using in the initial prototype, thus moving the whole system to use an ssh-based backend made sense.\\
+
+Still, while SSH provides a secure and flexible communication channel between the host system and remote Raspberry Pi, its effectiveness traditionally depends on network configurations that allow direct reachability, such as static IP addresses, port forwarding, or public-facing network interfaces. These requirements can be difficult to maintain and pose potential security risks in distributed or unattended deployments. To overcome these limitations, the system optionally integrates Tailscale, a virtual private network (VPN) solution based on the WireGuard protocol. Tailscale creates a mesh network that securely connects all participating devices using encrypted peer-to-peer tunnels, regardless of whether they are behind NATs or dynamic IP networks. By pairing Tailscale with SSH, the system ensures that each Raspberry Pi can be reached via a stable, private IP address within the virtual network, without requiring manual port forwarding or exposure to the public internet. This combination enhances security, simplifies network configuration, and improves the robustness of remote monitoring, especially when deploying sensor modules in challenging or highly variable network environments.
+ 
+ \subsection{Graphical User Interface (GUI)}
+The frontend is implemented in Java Swing for maximum cross-platform compatibility and ease of distribution. It implements a JTabbedPane to organize key functionalities into separate intuitive sections. The RPi Command Center tab allows users to issue predefined or custom SSH commands to the Raspberry Pi, such as starting or stopping sensor processes, checking system status, or synchronizing data. It also features a section that provides commands specific to the sensor, which allows the user to request data, configure sensor settings, and carry out calibration routines directly from the GUI. The Data Tab displays synced data files and offers file management actions, such as opening local directories in the native file explorer. The Settings Tab enables users to add, modify, and manage multiple Raspberry Pi profiles, which store host names and network addresses for convenient switching between multiple deployed units. An embedded console panel displays real-time logs of command execution and backend responses, improving transparency and debugging. Finally, the system utilizes a toast popup which displays a brief, non-critical message to provide feedback, an effective way of attracting the user’s attention without interrupting the task. This tabbed design abstracts complex shell interactions into clear actions, improving usability for researchers without advanced computing expertise.\\
+
+When a user performs an action in the GUI — for example, clicking a button to start or stop a sensor process, request a status update, or synchronize data, the GUI does not attempt to handle SSH sessions or file transfers directly. Instead, it invokes the Python backend as an external subprocess. This is accomplished using Java’s standard ProcessBuilder API, which constructs a shell command and executes it in a new operating system process. The GUI also configures ProcessBuilder to merge the Python process’s standard output and error streams, so that real-time backend logs and results can be read back by the GUI.
+
+Each built-in operation is mapped to a unique keyword (e.g., status, start, rsync). The GUI constructs the appropriate keyword based on the user’s action and passes it as an argument to the backend. The Python backend’s dispatcher function parses this argument and calls the corresponding function, which may run remote shell scripts, execute an rsync file transfer, reload configuration files, or return sensor status information.
+
+By isolating SSH, file operations, and system commands within the backend, the GUI is protected from low-level exceptions or platform-specific failures. If the backend encounters an error — such as a failed SSH connection or a missing file — it writes descriptive error messages to standard output, which are displayed in the GUI console so the user can see and resolve issues without needing to inspect log files manually. This loosely coupled pattern has multiple practical benefits, including easy backend maintenance and testing (the Python scripts can be debugged independently) and supporting clear, real-time communication through simple standard input/output streams.
+
+\section{Software Implementation}
+Java Swing was selected as the primary framework for the graphical user interface due to its cross-platform compatibility, mature development ecosystem, and reliable performance for lightweight desktop applications. Swing provides a robust set of built-in components that allowed efficient development of an intuitive tabbed interface, simplifying complex remote operations into clear, interactive panels. Furthermore, Swing allowed for a modular system where frontend logic was separate from backend logic, which, given that Java is commonly taught and widely used, makes fore a more maintainable and extendable app. Unlike newer frameworks that often require additional runtime dependencies or web-based deployment, Swing offers native executables that run consistently across Windows, macOS, and Linux without the need for a dedicated web server or browser compatibility layer. This was particularly advantageous for a field-deployable monitoring system, where users may operate in bandwidth-constrained or offline environments. Moreover, Swing’s flexibility enabled seamless integration with the underlying Python backend, embedded SSH configuration tools, and real-time logging console, all within a unified interface.
+
+
+\subsection{Build and Packaging Workflow}
+Apache Maven was adopted as the build and dependency management tool for this project due to its extensive community usage, in-depth documentation, and its ability to standardize the compilation, packaging, and deployment processes across different development environments. Maven’s declarative project structure, defined through a single pom.xml file, enabled seamless integration of essential plugins such as the Maven Shade Plugin for producing self-contained executable JAR files. This streamlined the incorporation of external libraries, automated the inclusion of the custom Java runtime environment(JRE), and facilitated the organized copying of auxiliary resources such as Python scripts and configuration profiles into the final distributable package. Furthermore, Maven’s platform independence ensured that the build process remained consistent and reproducible across operating systems without requiring manual adjustments for each developer.\\
+
+All software components including the Java GUI, Python backend scripts, embedded python environment, and custom Java runtime were then bundled into a single portable package using Packr to handle platform-specific native launchers. Packr was selected as the packaging tool for this system because it provides reliable way to bundle a Java application together with a custom Java runtime and all necessary resources into a single native executable for each target platform. This approach eliminated the need for users to manually install or configure a compatible Java Runtime Environment and embedded python interpreter, which can be a barrier to adoption, especially for non-technical operators in the field. By embedding a minimized, version-controlled JRE and python interpreter, Packr ensures consistent runtime behavior and avoids version mismatches that might otherwise cause failures during deployment. \\
+
+Additionally, Packr’s ability to include auxiliary directories such as Python scripts and sensor configuration files directly alongside the native launcher simplified resource management and guaranteed that backend scripts were always available at predictable paths. This packaging strategy resulted in a portable, self-contained executable that runs reliably on macOS, and Linux without requiring users to install additional dependencies manually. Windows systems, however, required that the executable be contained in a specific folder alongside the necessary resources (JRE, python interpreter, and python scripts). In order to create a clean single executable file, a secondary setup executable was necessary.\\
+
+Inno Setup Compiler was selected as the final installer creator for the Windows version of the system due to its reliability, flexible scripting capabilities, and widespread adoption for distributing desktop applications. As stated, Packr effectively bundled the Java runtime, backend scripts, and resources into a self-contained executable folder, however, it did not provide a polished user-facing installer with simple installation steps, shortcuts, and uninstallation support. Inno Setup addresses this gap by generating a wrapper Windows installer that automatically places all required files in a designated program directory, configures desktop and Start Menu shortcuts that point to that location, and optionally registers an uninstaller within the Windows system settings. This simplified the installation experience for Windows users, who would previously need to manually extract or position files in specific folders. Additionally, Inno Setup scripts can be customized to handle versioning, license agreements, and post-installation tasks, providing a higher degree of control over the deployment process. By combining Packr for runtime bundling and Inno Setup for user-friendly distribution, the system achieves both technical portability and a seamless installation experience, reducing the likelihood of misconfiguration and improving adoption among non-technical operators. The system’s modular design as a whole allows it to be adapted easily to new sensor types or network configurations, supporting diverse deployment scenarios in remote field environments.\\
+
+\section{Methods}
+
+\section{Evaluation}
+
+\section{Future Work}
+
+\section{Conclusion}
+
+% TODO: References
+
+
+\end{document}
+
+% ACK
+% Mariana, Pablo; Mothitor
+% Halie
+% Mary
